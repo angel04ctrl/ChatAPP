@@ -1,3 +1,6 @@
+package ui;
+
+import java.io.IOException;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -5,14 +8,22 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import network.Message;
+import network.ChatClient;
 
 public class Main2 extends Application {
+    private ChatClient client;
 
     VBox messagesBox; // donde van las burbujas
     Label contactName;
 
     @Override
     public void start(Stage stage) {
+        try {
+            client = new ChatClient(192.168.1.254, 5000, this);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         BorderPane root = new BorderPane();
 
@@ -73,10 +84,15 @@ public class Main2 extends Application {
 
         // EVENTO ENVIAR MENSAJE
         sendBtn.setOnAction(e -> {
-            if (!inputField.getText().isEmpty()) {
-                addMessage(inputField.getText(), true);
-                inputField.clear();
-            }
+            String text = inputField.getText();
+            addMessage(text, true);
+
+            Message msg = new Message();
+            msg.sender = "Yo";
+            msg.content = text;
+
+            client.sendMessage(msg);
+            inputField.clear();
         });
 
         // EVENTO CAMBIAR CHAT
@@ -107,7 +123,7 @@ public class Main2 extends Application {
         addMessage("¿Cómo estás?", false);
     }
 
-    private void addMessage(String text, boolean isMine) {
+    public void addMessage(String text, boolean isMine) {
         Label msg = new Label(text);
         msg.setWrapText(true);
         msg.setPadding(new Insets(8));

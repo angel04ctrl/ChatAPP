@@ -3,6 +3,13 @@
   "configurations": [
     {
       "type": "java",
+      "name": "ChatServer",
+      "request": "launch",
+      "mainClass": "network.ChatServer",
+      "projectName": "ChatAPP_d4186ce2"
+    },
+    {
+      "type": "java",
       "name": "Run Main (pruebas)",
       "request": "launch",
       "mainClass": "Main",

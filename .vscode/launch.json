@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run Main (pruebas)",
+      "request": "launch",
+      "mainClass": "Main",
+      "vmArgs": "--module-path \"C:/Users/angel/OneDrive/Escritorio/Sistemas distribuios/ChatAPP/ChatAPP/openjfx-21.0.10_windows-x64_bin-sdk/javafx-sdk-21.0.10/lib\" --add-modules javafx.controls"
+    },
+    {
+      "type": "java",
+      "name": "Run Main2 (final)",
+      "request": "launch",
+      "mainClass": "Main2",
+      "vmArgs": "--module-path \"C:/Users/angel/OneDrive/Escritorio/Sistemas distribuios/ChatAPP/ChatAPP/openjfx-21.0.10_windows-x64_bin-sdk/javafx-sdk-21.0.10/lib\" --add-modules javafx.controls"
+    }
+  ]
+}

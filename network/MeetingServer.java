@@ -4,7 +4,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public class ChatServer {
+public class MeetingServer {
 
     private static final int PORT = 5000;
     private static Set<ClientHandler> clients =
@@ -16,21 +16,44 @@ public class ChatServer {
 
         while (true) {
             Socket socket = serverSocket.accept();
+
+            if (clients.size() >= 4) {
+                try {
+                    ObjectOutputStream tempOut =
+                            new ObjectOutputStream(socket.getOutputStream());
+
+                    Message fullMsg = new Message(
+                            "INFO",
+                            "Servidor",
+                            "La sala está llena (máximo 4 usuarios)"
+                    );
+
+                    tempOut.writeObject(fullMsg);
+                    tempOut.flush();
+                } catch (IOException e) {
+                    // ignorar error
+                }
+
+                socket.close();
+                continue;
+            }
+
             ClientHandler handler = new ClientHandler(socket);
             clients.add(handler);
             new Thread(handler).start();
         }
+
+
     }
 
-    public static void broadcast(Message msg, ClientHandler sender) {
+    public static void broadcast(Message msg) {
         synchronized (clients) {
             for (ClientHandler client : clients) {
-                if (client != sender) {
-                    client.send(msg);
-                }
+                client.send(msg);
             }
         }
     }
+
 
     public static void removeClient(ClientHandler client) {
         clients.remove(client);
@@ -41,6 +64,8 @@ class ClientHandler implements Runnable {
     private Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
+    private String username;
+
 
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
@@ -53,23 +78,40 @@ class ClientHandler implements Runnable {
         try {
             while (true) {
                 Message msg = (Message) in.readObject();
-                ChatServer.broadcast(msg, this);
+
+                if ("JOIN".equals(msg.type)) {
+                    username = msg.sender;
+                }
+
+                MeetingServer.broadcast(msg);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            // conexión cerrada
         } finally {
             try {
                 socket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            ChatServer.removeClient(this);
+
+            MeetingServer.removeClient(this);
+
+            if (username != null) {
+                Message leaveMsg = new Message(
+                    "LEAVE",
+                    "Servidor",
+                    username + " salió de la reunión"
+                );
+                MeetingServer.broadcast(leaveMsg);
+            }
         }
     }
+
 
     public void send(Message msg) {
         try {
             out.writeObject(msg);
+            out.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }

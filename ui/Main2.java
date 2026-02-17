@@ -1,5 +1,7 @@
 package ui;
 
+import com.github.sarxos.webcam.Webcam;
+
 import javafx.application.Application;
 import javafx.geometry.*;
 import javafx.scene.Scene;
@@ -17,6 +19,11 @@ public class Main2 extends Application {
 
     @Override
     public void start(Stage stage) {
+
+        Webcam webcam = Webcam.getDefault();
+        webcam.open();
+        System.out.println("Cámara abierta: " + webcam.getName());
+
 
         // ===== PEDIR NOMBRE =====
         TextInputDialog dialog = new TextInputDialog();

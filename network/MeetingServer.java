@@ -42,8 +42,6 @@ public class MeetingServer {
             clients.add(handler);
             new Thread(handler).start();
         }
-
-
     }
 
     public static void broadcast(Message msg) {
@@ -54,18 +52,17 @@ public class MeetingServer {
         }
     }
 
-
     public static void removeClient(ClientHandler client) {
         clients.remove(client);
     }
 }
+
 class ClientHandler implements Runnable {
 
     private Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private String username;
-
 
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
@@ -77,17 +74,24 @@ class ClientHandler implements Runnable {
     public void run() {
         try {
             while (true) {
+
                 Message msg = (Message) in.readObject();
 
-                if ("JOIN".equals(msg.type)) {
-                    username = msg.sender;
+                // 🔥 MODIFICADO - usar getters
+                if ("JOIN".equals(msg.getType())) {
+                    username = msg.getSender();
                 }
 
+                // 🔥 IMPORTANTE
+                // No importa si es CHAT o VIDEO,
+                // el servidor actúa como RELAY y reenvía todo.
                 MeetingServer.broadcast(msg);
             }
+
         } catch (Exception e) {
             // conexión cerrada
         } finally {
+
             try {
                 socket.close();
             } catch (IOException e) {
@@ -97,16 +101,18 @@ class ClientHandler implements Runnable {
             MeetingServer.removeClient(this);
 
             if (username != null) {
+
+                // 🔥 MODIFICADO - usar getters coherentes
                 Message leaveMsg = new Message(
-                    "LEAVE",
-                    "Servidor",
-                    username + " salió de la reunión"
+                        "LEAVE",
+                        "Servidor",
+                        username + " salió de la reunión"
                 );
+
                 MeetingServer.broadcast(leaveMsg);
             }
         }
     }
-
 
     public void send(Message msg) {
         try {

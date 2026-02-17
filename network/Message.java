@@ -4,15 +4,25 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
 
-    private static final long serialVersionUID = 1L;
+    private String type;
+    private String sender;
+    private String text;
+    private byte[] data;
 
-    public String type;      // CHAT, JOIN, LEAVE, INFO
-    public String sender;
-    public String content;
-
-    public Message(String type, String sender, String content) {
+    public Message(String type, String sender, String text) {
         this.type = type;
         this.sender = sender;
-        this.content = content;
+        this.text = text;
     }
+
+    public Message(String type, String sender, byte[] data) {
+        this.type = type;
+        this.sender = sender;
+        this.data = data;
+    }
+
+    public String getType() { return type; }
+    public String getSender() { return sender; }
+    public String getText() { return text; }
+    public byte[] getData() { return data; }
 }

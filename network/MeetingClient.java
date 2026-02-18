@@ -53,7 +53,7 @@ public class MeetingClient {
                                 break;
 
                             case "CAM_OFF":
-                                ui.removeUser(msg.getSender());
+                                ui.handleCameraOff(msg.getSender());
                                 break;
                         }
                     });

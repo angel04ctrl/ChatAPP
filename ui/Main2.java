@@ -1,29 +1,26 @@
 package ui;
 
+import java.net.URL;
 import com.github.sarxos.webcam.Webcam;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.Image;
 import javafx.embed.swing.SwingFXUtils;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.io.ByteArrayInputStream; // 🔥 AGREGADO
+import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import javax.imageio.ImageIO;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.SourceDataLine;
-import javax.sound.sampled.TargetDataLine;
 import javax.sound.sampled.*;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
-import javafx.application.Platform; // 🔥 AGREGADO
+import javafx.application.Platform;
 import javafx.geometry.*;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import network.*;
-import java.util.*; // 🔥 AGREGADO
+import java.util.*;
 
 public class Main2 extends Application {
 
@@ -31,36 +28,23 @@ public class Main2 extends Application {
     private TextField messageField;
     private MeetingClient client;
     private String username;
-
-    private Webcam webcam; // 🔥 AGREGADO
-    private Map<String, ImageView> userVideoMap = new HashMap<>(); // 🔥 AGREGADO
-    private List<StackPane> videoSlots = new ArrayList<>(); // 🔥 AGREGADO
+    private Webcam webcam;
+    private Map<String, ImageView> userVideoMap = new HashMap<>();
+    private GridPane videoGrid;
     private boolean cameraOn = true;
     private boolean micOn = true;
-
     private TargetDataLine microphone;
-    private AudioFormat audioFormat =
-            new AudioFormat(44100, 16, 1, true, true);
-
+    private AudioFormat audioFormat = new AudioFormat(44100, 16, 1, true, true);
 
     @Override
     public void start(Stage stage) {
 
-        webcam = Webcam.getDefault(); // 🔥 MODIFICADO (ahora atributo de clase)
-
+        webcam = Webcam.getDefault();
         if (webcam != null) {
-            webcam.setViewSize(new java.awt.Dimension(320, 240)); // 🔥 AGREGADO
+            webcam.setViewSize(new java.awt.Dimension(320, 240));
             webcam.open();
-            System.out.println("Cámara abierta: " + webcam.getName());
-        } else {
-            System.out.println("No se detectó cámara");
         }
 
-        ImageView imageView = new ImageView();
-        imageView.setFitWidth(320);
-        imageView.setFitHeight(240);
-
-        // ===== PEDIR NOMBRE =====
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Nombre de usuario");
         dialog.setHeaderText("Ingresa tu nombre:");
@@ -69,60 +53,70 @@ public class Main2 extends Application {
 
         BorderPane root = new BorderPane();
 
-        // ===== VIDEO GRID DINÁMICO =====
-        GridPane videoGrid = new GridPane();
+        // ================= VIDEO GRID =================
+        videoGrid = new GridPane();
         videoGrid.setHgap(10);
         videoGrid.setVgap(10);
         videoGrid.setPadding(new Insets(10));
+        videoGrid.setStyle("-fx-background-color: #181818;");
 
-        // 🔥 AGREGADO - crear 4 slots dinámicos
-        for (int i = 0; i < 4; i++) {
-            StackPane slot = createVideoPane("Vacío");
-            videoSlots.add(slot);
-            videoGrid.add(slot, i % 2, i / 2);
-        }
+        ColumnConstraints col = new ColumnConstraints();
+        col.setHgrow(Priority.ALWAYS);
+        col.setPercentWidth(100);
 
-        root.setCenter(videoGrid); // 🔥 AGREGADO
+        RowConstraints row = new RowConstraints();
+        row.setVgrow(Priority.ALWAYS);
+        row.setPercentHeight(100);
 
-        // 🔥 AGREGADO - asignar tu cámara al primer slot
-        assignUserToSlot(username, imageView);
+        videoGrid.getColumnConstraints().add(col);
+        videoGrid.getRowConstraints().add(row);
 
-        // ===== TIMER PARA CAPTURA Y ENVÍO =====
+        // ================= LOCAL VIDEO =================
+        ImageView localView = createVideoView();
+        userVideoMap.put(username, localView);
+        updateGridLayout();
+
+        // ================= TIMER =================
         AnimationTimer timer = new AnimationTimer() {
-
-            private long lastFrame = 0; // 🔥 AGREGADO (limitar FPS)
+            private long lastFrame = 0;
 
             @Override
             public void handle(long now) {
 
-                if (now - lastFrame < 100_000_000) return; // 10 FPS
+                if (now - lastFrame < 100_000_000) return;
                 lastFrame = now;
 
                 if (webcam != null && webcam.isOpen()) {
+
                     BufferedImage bufferedImage = webcam.getImage();
                     if (bufferedImage != null) {
 
                         Image fxImage = SwingFXUtils.toFXImage(bufferedImage, null);
-                        imageView.setImage(fxImage);
 
-                        sendVideoFrame(bufferedImage); // 🔥 AGREGADO
+                        ImageView view = userVideoMap.get(username);
+                        if (view != null) {
+                            view.setImage(fxImage);
+                        }
+
+                        sendVideoFrame(bufferedImage);
                     }
                 }
             }
         };
-
         timer.start();
 
-        // ===== CHAT PANEL =====
+        // ================= CHAT =================
         VBox chatBox = new VBox(10);
         chatBox.setPadding(new Insets(10));
+        chatBox.setMinWidth(300);
         chatBox.setPrefWidth(300);
+        chatBox.setMaxWidth(300);
 
         Label chatLabel = new Label("Chat");
 
         chatArea = new TextArea();
         chatArea.setEditable(false);
-        chatArea.setPrefHeight(400);
+        VBox.setVgrow(chatArea, Priority.ALWAYS);
 
         messageField = new TextField();
         messageField.setPromptText("Escribe un mensaje...");
@@ -131,21 +125,31 @@ public class Main2 extends Application {
         sendButton.setOnAction(e -> sendChat());
 
         chatBox.getChildren().addAll(chatLabel, chatArea, messageField, sendButton);
-        root.setRight(chatBox);
 
-        // ===== CONTROLES =====
+        // ================= SPLITPANE (FIX REAL) =================
+        SplitPane splitPane = new SplitPane();
+        splitPane.getItems().addAll(videoGrid, chatBox);
+        splitPane.setDividerPositions(0.75);
+        splitPane.setResizableWithParent(chatBox, false);
+
+        root.setCenter(splitPane);
+
+        // ================= CONTROLES =================
         HBox controls = new HBox(20);
         controls.setPadding(new Insets(10));
         controls.setAlignment(Pos.CENTER);
 
-        Button micButton = new Button("Mic");
-        Button camButton = new Button("Cam");
+        Button micButton = new Button("Mic ON");
+        Button camButton = new Button("Cam ON");
         Button leaveButton = new Button("Salir");
 
         leaveButton.setOnAction(e -> {
-            if (webcam != null) webcam.close(); // 🔥 AGREGADO
+            if (webcam != null) webcam.close();
             System.exit(0);
         });
+
+        camButton.setOnAction(e -> toggleCamera(camButton));
+        micButton.setOnAction(e -> toggleMic(micButton));
 
         controls.getChildren().addAll(micButton, camButton, leaveButton);
         root.setBottom(controls);
@@ -155,69 +159,154 @@ public class Main2 extends Application {
         stage.setScene(scene);
         stage.show();
 
-        camButton.setOnAction(e -> {
+        URL cssURL = getClass().getResource("/style.css");
+        if (cssURL != null) {
+            scene.getStylesheets().add(cssURL.toExternalForm());
+        }
 
-            cameraOn = !cameraOn;
-
-            if (!cameraOn) {
-                webcam.close();
-                camButton.setText("Cam OFF");
-
-                try {
-                    client.sendMessage(new Message("CAM_OFF", username, "off"));
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
-            } else {
-                webcam.open();
-                camButton.setText("Cam ON");
-            }
-        });
-
-        micButton.setOnAction(e -> {
-
-            micOn = !micOn;
-
-            if (micOn) {
-                micButton.setText("Mic ON");
-                startMicrophone();
-            } else {
-                micButton.setText("Mic OFF");
-                stopMicrophone();
-            }
-        });
-
-
-
-
-
-        // ===== CONEXIÓN =====
         try {
-            client = new MeetingClient("25.xxx.xxx.xxx", 5000, this);
+            client = new MeetingClient("25.32.17.157", 5000, this);
         } catch (Exception e) {
             addMessage(">> No se pudo conectar al servidor", false);
         }
+
+        
     }
 
-    // 🔥 AGREGADO - enviar frame
-    private void sendVideoFrame(BufferedImage image) {
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "jpg", baos);
-            byte[] imageBytes = baos.toByteArray();
+    // ================= VIDEO VIEW FACTORY =================
+    private ImageView createVideoView() {
 
-            Message msg = new Message("VIDEO", username, imageBytes);
-            client.sendMessage(msg);
+        ImageView view = new ImageView();
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        view.setFitWidth(400);     // 🔥 tamaño visual fijo
+        view.setFitHeight(300);
+        view.setPreserveRatio(true);
+        view.setSmooth(true);
+
+        return view;
+    }
+
+    private StackPane createVideoContainer(ImageView view) {
+
+        StackPane container = new StackPane(view);
+
+        container.setStyle(
+            "-fx-background-color: transparent;"
+        );
+
+        view.setPreserveRatio(true);
+
+        view.fitWidthProperty().bind(container.widthProperty());
+        view.fitHeightProperty().bind(container.heightProperty());
+
+        return container;
+    }
+
+
+    
+
+
+    // ================= GRID LAYOUT FIX DEFINITIVO =================
+    private void updateGridLayout() {
+
+        videoGrid.getChildren().clear();
+
+        int total = userVideoMap.size();
+        if (total == 0) return;
+
+        int cols = (int) Math.ceil(Math.sqrt(total));
+        int rows = (int) Math.ceil((double) total / cols);
+
+        videoGrid.getColumnConstraints().clear();
+        videoGrid.getRowConstraints().clear();
+
+        for (int i = 0; i < cols; i++) {
+            ColumnConstraints col = new ColumnConstraints();
+            col.setPercentWidth(100.0 / cols);
+            col.setHgrow(Priority.ALWAYS);
+            videoGrid.getColumnConstraints().add(col);
+        }
+
+        for (int i = 0; i < rows; i++) {
+            RowConstraints row = new RowConstraints();
+            row.setPercentHeight(100.0 / rows);
+            row.setVgrow(Priority.ALWAYS);
+            videoGrid.getRowConstraints().add(row);
+        }
+
+        int index = 0;
+
+        for (ImageView view : userVideoMap.values()) {
+
+            StackPane container = createVideoContainer(view);
+
+            int col = index % cols;
+            int row = index / cols;
+
+            videoGrid.add(container, col, row);
+
+            index++;
         }
     }
 
 
-    private void startMicrophone() {
+    // ================= CAMERA =================
+    private void toggleCamera(Button button) {
 
+        cameraOn = !cameraOn;
+
+        if (!cameraOn) {
+            if (webcam != null) webcam.close();
+            button.setText("Cam OFF");
+        } else {
+            if (webcam != null) webcam.open();
+            button.setText("Cam ON");
+        }
+    }
+
+    // ================= MIC =================
+    private void toggleMic(Button button) {
+
+        micOn = !micOn;
+
+        if (micOn) {
+            button.setText("Mic ON");
+            startMicrophone();
+        } else {
+            button.setText("Mic OFF");
+            stopMicrophone();
+        }
+    }
+
+    // ================= NETWORK VIDEO =================
+    private void sendVideoFrame(BufferedImage image) {
+        if (client == null) return;
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+            client.sendMessage(new Message("VIDEO", username, baos.toByteArray()));
+        } catch (Exception ignored) {}
+    }
+
+    public void receiveVideoFrame(String sender, byte[] imageBytes) {
+
+        Platform.runLater(() -> {
+
+            ImageView view = userVideoMap.get(sender);
+
+            if (view == null) {
+                view = createVideoView();
+                userVideoMap.put(sender, view);
+                updateGridLayout();
+            }
+
+            view.setImage(new Image(new ByteArrayInputStream(imageBytes)));
+        });
+    }
+
+    // ================= AUDIO =================
+    private void startMicrophone() {
         new Thread(() -> {
             try {
 
@@ -231,37 +320,22 @@ public class Main2 extends Application {
                 byte[] buffer = new byte[4096];
 
                 while (micOn && microphone != null) {
-
-
                     int bytesRead = microphone.read(buffer, 0, buffer.length);
-
-                    if (bytesRead > 0) {
-                        client.sendMessage(
-                                new Message("AUDIO", username, buffer.clone())
-                        );
+                    if (bytesRead > 0 && client != null) {
+                        try{
+                            client.sendMessage(new Message("AUDIO", username, buffer.clone()));
+                        }catch(IOException ignored){}
+                        
                     }
                 }
 
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            } catch (Exception ignored) {}
         }).start();
     }
 
-    private void stopMicrophone() {
-
-        try {
-            if (microphone != null) {
-                microphone.stop();
-                microphone.close();
-                microphone = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public String getUsername() {
+        return username;
     }
-
-
 
     public void playAudio(byte[] audioData) {
 
@@ -286,99 +360,46 @@ public class Main2 extends Application {
                 e.printStackTrace();
             }
         }).start();
-    }   
+    }
 
+    public void handleCameraOff(String user) {
 
-
-
-
-
-    // 🔥 AGREGADO - recibir frame remoto
-    public void receiveVideoFrame(String sender, byte[] imageBytes) {
         Platform.runLater(() -> {
-            try {
-                ImageView view = userVideoMap.get(sender);
-
-                if (view == null) {
-                    view = new ImageView();
-                    view.setFitWidth(320);
-                    view.setFitHeight(240);
-                    assignUserToSlot(sender, view);
-                }
-
-                Image img = new Image(new ByteArrayInputStream(imageBytes));
-                view.setImage(img);
-
-            } catch (Exception e) {
-                e.printStackTrace();
+            ImageView view = userVideoMap.get(user);
+            if (view != null) {
+                view.setImage(null);
             }
         });
     }
 
-    // 🔥 AGREGADO - asignar slot dinámico
-    private void assignUserToSlot(String username, ImageView view) {
-        for (StackPane slot : videoSlots) {
-            if (slot.getChildren().size() == 1 && slot.getChildren().get(0) instanceof Label){
-                slot.getChildren().clear();
-                slot.getChildren().add(view);
-                userVideoMap.put(username, view);
-                break;
+
+    private void stopMicrophone() {
+        try {
+            if (microphone != null) {
+                microphone.stop();
+                microphone.close();
+                microphone = null;
             }
-        }
-    }
-
-    // 🔥 NUEVO - eliminar usuario cuando se va
-    public void removeUser(String username) {
-
-        ImageView view = userVideoMap.remove(username);
-
-        if (view != null) {
-            for (StackPane slot : videoSlots) {
-
-                if (slot.getChildren().contains(view)) {
-
-                    slot.getChildren().clear();
-                    slot.getChildren().add(new Label("Vacío"));
-                    break;
-                }
-            }
-        }
-    }
-
-
-    private StackPane createVideoPane(String name) {
-        StackPane pane = new StackPane();
-        pane.setPrefSize(400, 300);
-        pane.setStyle("-fx-background-color: black; -fx-border-color: gray;");
-
-        Label label = new Label(name);
-        label.setStyle("-fx-text-fill: white; -fx-font-size: 16px;");
-
-        pane.getChildren().add(label);
-        return pane;
-    }
-
-    private void sendChat() {
-        String text = messageField.getText().trim();
-
-        if (!text.isEmpty()) {
-            try {
-                Message msg = new Message("CHAT", username, text);
-                client.sendMessage(msg);
-                messageField.clear();
-            } catch (Exception e) {
-                addMessage(">> Error enviando mensaje", false);
-            }
-        }
+        } catch (Exception ignored) {}
     }
 
     public void addMessage(String message, boolean own) {
         chatArea.appendText(message + "\n");
     }
 
-    public String getUsername() {
-        return username;
+    private void sendChat() {
+        String text = messageField.getText().trim();
+        if (!text.isEmpty() && client != null) {
+            try {
+                client.sendMessage(new Message("CHAT", username, text));
+                messageField.clear();
+            } catch (IOException e) {
+                addMessage(">> Error enviando mensaje", false);
+                e.printStackTrace();
+            }
+        }
     }
+
 
     public static void main(String[] args) {
         launch();

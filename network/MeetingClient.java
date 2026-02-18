@@ -13,9 +13,8 @@ public class MeetingClient {
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Main2 ui;
-    /**
-     * Constructor: establece conexión y lanza hilo receptor.
-     */
+    //Constructor: establece conexión y lanza hilo receptor.
+    
     public MeetingClient(String host, int port, Main2 ui) throws IOException {
 
         this.ui = ui;
@@ -77,9 +76,8 @@ public class MeetingClient {
                 ui.getUsername() + " se unió"
         ));
     }
-   /**
-     * Envía mensaje al servidor.
-     */
+   //Envía mensaje al servidor.
+     
     public void sendMessage(Message msg) throws IOException {
         out.writeObject(msg);
         out.flush();

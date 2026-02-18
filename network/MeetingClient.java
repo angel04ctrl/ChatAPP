@@ -10,71 +10,95 @@ public class MeetingClient {
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Main2 ui;
+    private Socket socket;
+    private boolean connected = false;
 
     public MeetingClient(String host, int port, Main2 ui) throws IOException {
 
         this.ui = ui;
 
-        Socket socket = new Socket(host, port);
-
-        out = new ObjectOutputStream(socket.getOutputStream());
-        in = new ObjectInputStream(socket.getInputStream());
-
-        new Thread(() -> {
+        // Conectar en thread separado para macOS
+        Thread connectThread = new Thread(() -> {
             try {
-                while (true) {
+                socket = new Socket();
+                socket.connect(new InetSocketAddress(host, port), 5000); // 5 segundo timeout
 
-                    Message msg = (Message) in.readObject();
+                out = new ObjectOutputStream(socket.getOutputStream());
+                out.flush();
+                in = new ObjectInputStream(socket.getInputStream());
 
-                    Platform.runLater(() -> {
+                connected = true;
+                Platform.runLater(() -> ui.addMessage(">> Conectado al servidor", false));
 
-                        switch (msg.getType()) {
+                // Thread de recepción
+                new Thread(() -> {
+                    try {
+                        while (connected) {
+                            Message msg = (Message) in.readObject();
 
-                            case "CHAT":
-                                ui.addMessage(msg.getSender() + ": " + msg.getText(), false);
-                                break;
+                            Platform.runLater(() -> {
 
-                            case "JOIN":
-                            case "LEAVE":
-                            case "INFO":
-                                ui.addMessage(">> " + msg.getText(), false);
-                                break;
+                                switch (msg.getType()) {
 
-                            case "VIDEO":
-                                if (!msg.getSender().equals(ui.getUsername())) {
-                                    ui.receiveVideoFrame(msg.getSender(), msg.getData());
+                                    case "CHAT":
+                                        ui.addMessage(msg.getSender() + ": " + msg.getText(), false);
+                                        break;
+
+                                    case "JOIN":
+                                    case "LEAVE":
+                                    case "INFO":
+                                        ui.addMessage(">> " + msg.getText(), false);
+                                        break;
+
+                                    case "VIDEO":
+                                        if (!msg.getSender().equals(ui.getUsername())) {
+                                            ui.receiveVideoFrame(msg.getSender(), msg.getData());
+                                        }
+                                        break;
+
+                                    case "AUDIO":
+                                        if (!msg.getSender().equals(ui.getUsername())) {
+                                            ui.playAudio(msg.getData());
+                                        }
+                                        break;
+
+                                    case "CAM_OFF":
+                                        ui.handleCameraOff(msg.getSender());
+                                        break;
                                 }
-                                break;
-
-                            case "AUDIO":
-                                if (!msg.getSender().equals(ui.getUsername())) {
-                                    ui.playAudio(msg.getData());
-                                }
-                                break;
-
-                            case "CAM_OFF":
-                                ui.handleCameraOff(msg.getSender());
-                                break;
+                            });
                         }
-                    });
-                }
 
+                    } catch (Exception e) {
+                        if (connected) {
+                            Platform.runLater(() -> ui.addMessage(">> Conexión perdida", false));
+                        }
+                    }
+                }).start();
+
+                sendMessage(new Message(
+                        "JOIN",
+                        ui.getUsername(),
+                        ui.getUsername() + " se unió"
+                ));
+
+            } catch (SocketTimeoutException e) {
+                Platform.runLater(() -> ui.addMessage(">> Error: Timeout al conectar", false));
+            } catch (ConnectException e) {
+                Platform.runLater(() -> ui.addMessage(">> Error: Servidor no disponible", false));
             } catch (Exception e) {
-                Platform.runLater(() ->
-                        ui.addMessage(">> Conexión perdida", false));
+                Platform.runLater(() -> ui.addMessage(">> Error: " + e.getMessage(), false));
             }
-
-        }).start();
-
-        sendMessage(new Message(
-                "JOIN",
-                ui.getUsername(),
-                ui.getUsername() + " se unió"
-        ));
+        });
+        connectThread.setDaemon(true);
+        connectThread.start();
     }
 
     public void sendMessage(Message msg) throws IOException {
-        out.writeObject(msg);
-        out.flush();
+        if (connected && out != null) {
+            out.writeObject(msg);
+            out.reset();
+            out.flush();
+        }
     }
 }

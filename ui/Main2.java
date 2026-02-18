@@ -164,11 +164,18 @@ public class Main2 extends Application {
             scene.getStylesheets().add(cssURL.toExternalForm());
         }
 
-        try {
-            client = new MeetingClient("0.tcp.ngrok.io", 12634, this); 
-        } catch (Exception e) {
-            addMessage(">> No se pudo conectar al servidor", false);
-        }
+        // Conectar en background (crítico para macOS)
+        addMessage(">> Conectando al servidor...", false);
+        Thread connectionThread = new Thread(() -> {
+            try {
+                client = new MeetingClient("4.tcp.ngrok.io", 16764, this);
+            } catch (Exception e) {
+                addMessage(">> Error: No se pudo conectar - " + e.getMessage(), false);
+                e.printStackTrace();
+            }
+        });
+        connectionThread.setDaemon(true);
+        connectionThread.start();
 
         
     }

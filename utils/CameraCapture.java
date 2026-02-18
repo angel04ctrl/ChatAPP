@@ -1,71 +1,136 @@
 package utils;
 
-import com.github.sarxos.webcam.Webcam;
 import javafx.scene.image.Image;
-import javafx.embed.swing.SwingFXUtils;
-import java.awt.image.BufferedImage;
+import javafx.scene.image.PixelFormat;
+import javafx.scene.image.WritableImage;
+import java.io.*;
 import java.util.concurrent.TimeUnit;
 
 public class CameraCapture {
-    private Webcam webcam;
+    private Process captureProcess;
+    private InputStream frameStream;
     private boolean isOpen = false;
+    private static final String FFMPEG_PATH = "/opt/homebrew/bin/ffmpeg";
 
     public CameraCapture(int cameraIndex) {
         try {
-            // Get default webcam or specified by index
-            if (cameraIndex == 0) {
-                this.webcam = Webcam.getDefault();
-            } else {
-                Webcam.getWebcams();
-                // For simplicity, get default
-                this.webcam = Webcam.getDefault();
+            // Verify ffmpeg exists
+            if (!new File(FFMPEG_PATH).exists()) {
+                System.err.println("Warning: ffmpeg not found at " + FFMPEG_PATH);
+                isOpen = false;
+                return;
             }
 
-            if (webcam != null) {
-                // Set size
-                webcam.setViewSize(new java.awt.Dimension(320, 240));
-                // Open with timeout
-                this.isOpen = webcam.open();
-                if (isOpen) {
-                    System.out.println("Camera opened successfully");
-                } else {
-                    System.err.println("Failed to open camera - timeout");
-                }
-            } else {
-                System.err.println("No camera found on system");
-            }
+            startFFmpegCapture(cameraIndex);
         } catch (Exception e) {
-            System.err.println("Error initializing camera: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Warning: Could not initialize camera: " + e.getMessage());
+            isOpen = false;
+        }
+    }
+
+    private void startFFmpegCapture(int cameraIndex) {
+        try {
+            // Use the specific camera device
+            // On macOS with AVFoundation, format is avfoundation
+            ProcessBuilder pb = new ProcessBuilder(
+                FFMPEG_PATH,
+                "-f", "avfoundation",
+                "-i", cameraIndex + ":none",  // video:audio (none means no audio)
+                "-vf", "scale=320:240",
+                "-f", "rawvideo",
+                "-pix_fmt", "rgb24",
+                "-framerate", "10",
+                "-"
+            );
+            
+            // Redirect stderr to suppress messages
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            this.captureProcess = pb.start();
+            
+            // Give it a moment to initialize
+            Thread.sleep(500);
+            
+            if (captureProcess.isAlive()) {
+                this.frameStream = captureProcess.getInputStream();
+                this.isOpen = true;
+                System.out.println("Camera initialized via ffmpeg (device " + cameraIndex + ")");
+            } else {
+                // Process died immediately - permission denied or camera access issue
+                System.err.println("Warning: ffmpeg process failed to start - camera permissions needed");
+                this.isOpen = false;
+            }
+        } catch (InterruptedException e) {
+            System.err.println("Warning: Interrupted while initializing camera: " + e.getMessage());
+            this.isOpen = false;
+        } catch (Exception e) {
+            System.err.println("Warning: Error starting ffmpeg: " + e.getMessage());
+            this.isOpen = false;
         }
     }
 
     public Image captureFrame() {
-        if (!isOpen || webcam == null) {
+        if (!isOpen || frameStream == null || captureProcess == null) {
             return null;
         }
 
         try {
-            if (!webcam.isOpen()) {
+            if (!captureProcess.isAlive()) {
+                System.err.println("Warning: ffmpeg process died");
+                isOpen = false;
                 return null;
             }
 
-            BufferedImage bufferedImage = webcam.getImage();
-            if (bufferedImage == null) {
-                return null;
+            // Read one frame (320x240 RGB24 = 320*240*3 bytes = 230400 bytes)
+            byte[] frameData = new byte[320 * 240 * 3];
+            int bytesRead = 0;
+            int totalRead = 0;
+            
+            while (totalRead < frameData.length) {
+                bytesRead = frameStream.read(frameData, totalRead, frameData.length - totalRead);
+                if (bytesRead == -1) {
+                    System.err.println("Warning: EOF reached from ffmpeg");
+                    isOpen = false;
+                    return null;
+                }
+                totalRead += bytesRead;
             }
 
-            return SwingFXUtils.toFXImage(bufferedImage, null);
-        } catch (Exception e) {
-            System.err.println("Error capturing frame: " + e.getMessage());
+            // Convert raw RGB to WritableImage
+            WritableImage image = new WritableImage(320, 240);
+            int[] pixels = new int[320 * 240];
+            
+            for (int i = 0; i < pixels.length; i++) {
+                int r = frameData[i * 3] & 0xFF;
+                int g = frameData[i * 3 + 1] & 0xFF;
+                int b = frameData[i * 3 + 2] & 0xFF;
+                pixels[i] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+            }
+            
+            image.getPixelWriter().setPixels(0, 0, 320, 240, 
+                PixelFormat.getIntArgbInstance(), pixels, 0, 320);
+            
+            return image;
+        } catch (IOException e) {
+            if (isOpen) {
+                System.err.println("Error reading frame: " + e.getMessage());
+            }
             return null;
         }
     }
 
     public void close() {
-        if (webcam != null && isOpen) {
+        if (captureProcess != null) {
             try {
-                webcam.close();
+                captureProcess.destroy();
+                if (frameStream != null) {
+                    frameStream.close();
+                }
+                
+                // Wait for process to die
+                if (!captureProcess.waitFor(2, TimeUnit.SECONDS)) {
+                    captureProcess.destroyForcibly();
+                }
+                
                 isOpen = false;
                 System.out.println("Camera closed");
             } catch (Exception e) {
@@ -75,7 +140,9 @@ public class CameraCapture {
     }
 
     public boolean isOpened() {
-        return isOpen && webcam != null && webcam.isOpen();
+        return isOpen && captureProcess != null && captureProcess.isAlive();
     }
 }
+
+
 

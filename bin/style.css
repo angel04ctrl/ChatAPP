@@ -1,0 +1,48 @@
+.root {
+    -fx-background-color: #1e1e2f;
+    -fx-font-family: "Segoe UI";
+}
+
+.button {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-padding: 8 15 8 15;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #2563eb;
+}
+
+#camButton {
+    -fx-background-color: #10b981;
+}
+
+#camButton:hover {
+    -fx-background-color: #059669;
+}
+
+#micButton {
+    -fx-background-color: #ef4444;
+}
+
+#micButton:hover {
+    -fx-background-color: #dc2626;
+}
+
+.text-area {
+    -fx-control-inner-background: #2a2a3d;
+    -fx-text-fill: white;
+    -fx-background-radius: 10;
+}
+
+.text-field {
+    -fx-background-color: #2a2a3d;
+    -fx-text-fill: white;
+    -fx-background-radius: 10;
+}
+
+.label {
+    -fx-text-fill: white;
+}

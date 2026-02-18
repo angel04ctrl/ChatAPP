@@ -165,7 +165,7 @@ public class Main2 extends Application {
         }
 
         try {
-            client = new MeetingClient("25.32.17.157", 5000, this);
+            client = new MeetingClient("0.tcp.ngrok.io", 12634, this); 
         } catch (Exception e) {
             addMessage(">> No se pudo conectar al servidor", false);
         }

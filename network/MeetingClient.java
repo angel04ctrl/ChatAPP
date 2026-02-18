@@ -101,7 +101,7 @@ public class MeetingClient {
     
     // Envía mensaje al servidor.
     // Funcionamiento: Escribe el objeto en out y flush para enviarlo inmediatamente.
-    public void sendMessage(Message msg) throws IOException {
+    public synchronized void sendMessage(Message msg) throws IOException {
         out.writeObject(msg);
         out.flush();
     }

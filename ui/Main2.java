@@ -218,9 +218,15 @@ public class Main2 extends Application {
         // Conexión al cliente: Try-catch para errores de conexión.
         try {
             client = new MeetingClient("4.tcp.ngrok.io", 13998, this); 
+            
+            // 🔥 INICIO AUTOMÁTICO DEL MICRÓFONO
+            // Como micOn inicia en true, debemos arrancar la captura aquí.
+            startMicrophone();
+
         } catch (Exception e) {
             addMessage(">> No se pudo conectar al servidor: " + e.getMessage(), false);
         }
+
 
         
     }

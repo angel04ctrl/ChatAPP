@@ -4,13 +4,18 @@ import ui.Main2;
 import javafx.application.Platform;
 import java.io.*;
 import java.net.*;
-
+/**
+ * Cliente TCP que maneja comunicación con el servidor.
+ * Funciona como intermediario entre la UI y la red.
+ */
 public class MeetingClient {
 
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Main2 ui;
-
+    /**
+     * Constructor: establece conexión y lanza hilo receptor.
+     */
     public MeetingClient(String host, int port, Main2 ui) throws IOException {
 
         this.ui = ui;
@@ -19,7 +24,7 @@ public class MeetingClient {
 
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
-
+// Hilo para recibir mensajes
         new Thread(() -> {
             try {
                 while (true) {
@@ -72,7 +77,9 @@ public class MeetingClient {
                 ui.getUsername() + " se unió"
         ));
     }
-
+   /**
+     * Envía mensaje al servidor.
+     */
     public void sendMessage(Message msg) throws IOException {
         out.writeObject(msg);
         out.flush();

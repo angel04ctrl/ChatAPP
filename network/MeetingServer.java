@@ -3,20 +3,30 @@ package network;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+/**
+ * Servidor principal del sistema de videoconferencia.
+ * Administra conexiones entrantes y retransmite mensajes
+ * entre todos los clientes conectados.
+ */
 
 public class MeetingServer {
-
+// Puerto de escucha del servidor
     private static final int PORT = 5000;
+    // Conjunto sincronizado de clientes conectados
     private static Set<ClientHandler> clients =
             Collections.synchronizedSet(new HashSet<>());
-
+     /**
+     * Punto de entrada del servidor.
+     * Escucha conexiones de forma indefinida.
+     */
     public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);
         System.out.println("Servidor iniciado en puerto " + PORT);
 
         while (true) {
+            // Espera conexión entrante
             Socket socket = serverSocket.accept();
-
+            // Límite de participantes (máx 4)
             if (clients.size() >= 4) {
                 try {
                     ObjectOutputStream tempOut =
@@ -37,13 +47,15 @@ public class MeetingServer {
                 socket.close();
                 continue;
             }
-
+            // Crear manejador de cliente
             ClientHandler handler = new ClientHandler(socket);
             clients.add(handler);
             new Thread(handler).start();
         }
     }
-
+    
+     //Envía un mensaje a todos los clientes conectados.
+     
     public static void broadcast(Message msg) {
         synchronized (clients) {
             for (ClientHandler client : clients) {
@@ -51,7 +63,9 @@ public class MeetingServer {
             }
         }
     }
-
+    
+     //Elimina cliente de la lista activa.
+    
     public static void removeClient(ClientHandler client) {
         clients.remove(client);
     }
@@ -64,12 +78,16 @@ class ClientHandler implements Runnable {
     private ObjectInputStream in;
     private String username;
 
+    //Constructor que inicializa streams de comunicación.
+     
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
     }
-
+    
+  //Bucle principal de escucha de mensajes.
+     
     @Override
     public void run() {
         try {
@@ -77,14 +95,14 @@ class ClientHandler implements Runnable {
 
                 Message msg = (Message) in.readObject();
 
-                // 🔥 MODIFICADO - usar getters
+                // Registrar usuario cuando envía JOIN
                 if ("JOIN".equals(msg.getType())) {
                     username = msg.getSender();
                 }
 
-                // 🔥 IMPORTANTE
                 // No importa si es CHAT o VIDEO,
                 // el servidor actúa como RELAY y reenvía todo.
+                // Retransmisión a todos los clientes
                 MeetingServer.broadcast(msg);
             }
 
@@ -99,10 +117,10 @@ class ClientHandler implements Runnable {
             }
 
             MeetingServer.removeClient(this);
-
+            // Notificar salida del usuario
             if (username != null) {
 
-                // 🔥 MODIFICADO - usar getters coherentes
+                
                 Message leaveMsg = new Message(
                         "LEAVE",
                         "Servidor",
@@ -113,7 +131,9 @@ class ClientHandler implements Runnable {
             }
         }
     }
-
+  
+     //Envía mensaje a este cliente específico.
+    
     public void send(Message msg) {
         try {
             out.writeObject(msg);

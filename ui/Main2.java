@@ -21,16 +21,27 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import network.*;
 import java.util.*;
+/**
+ * Clase principal de la aplicación cliente.
+ * Extiende Application para inicializar entorno JavaFX.
+ */
 
 public class Main2 extends Application {
-
+    // Área de visualización del chat
     private TextArea chatArea;
+    // Campo de entrada de mensajes
     private TextField messageField;
+    // Cliente de red
     private MeetingClient client;
+    // Nombre del usuario actual
     private String username;
+    // Webcam utilizada para captura de video
     private Webcam webcam;
+    // Mapa que asocia usuario → vista de video
     private Map<String, ImageView> userVideoMap = new HashMap<>();
+    // Grid dinámico donde se muestran videos
     private GridPane videoGrid;
+    // Estados de dispositivos
     private boolean cameraOn = true;
     private boolean micOn = true;
     private TargetDataLine microphone;
@@ -126,7 +137,7 @@ public class Main2 extends Application {
 
         chatBox.getChildren().addAll(chatLabel, chatArea, messageField, sendButton);
 
-        // ================= SPLITPANE (FIX REAL) =================
+        // ================= SPLITPANE=================
         SplitPane splitPane = new SplitPane();
         splitPane.getItems().addAll(videoGrid, chatBox);
         splitPane.setDividerPositions(0.75);
@@ -173,7 +184,7 @@ public class Main2 extends Application {
         
     }
 
-    // ================= VIDEO VIEW FACTORY =================
+    // ================= VIDEO VIEW =================
     private ImageView createVideoView() {
 
         ImageView view = new ImageView();
@@ -206,7 +217,7 @@ public class Main2 extends Application {
     
 
 
-    // ================= GRID LAYOUT FIX DEFINITIVO =================
+    // ================= GRID LAYOUT =================
     private void updateGridLayout() {
 
         videoGrid.getChildren().clear();
@@ -279,6 +290,10 @@ public class Main2 extends Application {
     }
 
     // ================= NETWORK VIDEO =================
+    /**
+     * Envía frame de video al servidor.
+     * Convierte BufferedImage a arreglo de bytes en formato JPG.
+     */
     private void sendVideoFrame(BufferedImage image) {
         if (client == null) return;
 
@@ -306,6 +321,11 @@ public class Main2 extends Application {
     }
 
     // ================= AUDIO =================
+    /**
+     * Inicia captura de micrófono en hilo independiente.
+     * Envía buffers de audio en tiempo real.
+     */
+
     private void startMicrophone() {
         new Thread(() -> {
             try {

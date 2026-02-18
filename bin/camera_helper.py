@@ -5,13 +5,16 @@ Captures frames from camera and outputs as raw RGB24
 """
 import cv2
 import sys
-import struct
+import time
 
 def main():
     camera_id = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     
-    # Try to open camera
-    cap = cv2.VideoCapture(camera_id)
+    # Try to open camera (prefer AVFoundation on macOS)
+    if sys.platform == "darwin":
+        cap = cv2.VideoCapture(camera_id, cv2.CAP_AVFOUNDATION)
+    else:
+        cap = cv2.VideoCapture(camera_id)
     
     if not cap.isOpened():
         print(f"ERROR: Could not open camera {camera_id}", file=sys.stderr)
@@ -26,12 +29,33 @@ def main():
     print(f"READY: Camera {camera_id} opened at 320x240", file=sys.stderr)
     sys.stderr.flush()
     
+    # Warm up a few frames to stabilize exposure
+    for _ in range(5):
+        cap.read()
+        time.sleep(0.05)
+
     # Capture frames continuously
+    consecutive_failures = 0
+    max_failures = 50
+    last_warn_at = 0
     while True:
         ret, frame = cap.read()
-        
+
         if not ret:
-            break
+            consecutive_failures += 1
+            now = time.time()
+            if now - last_warn_at > 2:
+                print("WARN: Camera read failed", file=sys.stderr)
+                sys.stderr.flush()
+                last_warn_at = now
+            if consecutive_failures >= max_failures:
+                print("ERROR: Too many capture failures, stopping camera", file=sys.stderr)
+                sys.stderr.flush()
+                break
+            time.sleep(0.05)
+            continue
+
+        consecutive_failures = 0
         
         # Make sure it's the right size
         if frame.shape[:2] != (240, 320):

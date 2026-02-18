@@ -48,9 +48,22 @@ public class Main2 extends Application {
 
         // Initialize camera
         try {
+            System.out.println("Inicializando cámara...");
             camera = new CameraCapture(0);
+
+            // Esperar un momento para que la cámara se inicialice
+            Thread.sleep(2000);
+
+            if (camera != null && camera.isOpened()) {
+                System.out.println("✓ Cámara iniciada correctamente");
+            } else {
+                System.err.println(
+                        "✗ Cámara no pudo abrirse. Verifica permisos en Configuración del Sistema > Privacidad y seguridad > Cámara");
+                addMessage(">> Cámara no disponible - verifica permisos", false);
+            }
         } catch (Exception e) {
-            System.err.println("Warning: Could not initialize camera: " + e.getMessage());
+            System.err.println("✗ Error inicializando cámara: " + e.getMessage());
+            System.err.println("  Verifica que Python esté instalado y opencv-python disponible");
             camera = null;
         }
 
@@ -100,13 +113,30 @@ public class Main2 extends Application {
                             view.setImage(frame);
                         }
 
-                        if (client != null && now - lastSend >= 200_000_000) {
+                        if (client != null && client.isConnected() && now - lastSend >= 200_000_000) {
                             BufferedImage buffered = SwingFXUtils.fromFXImage(frame, null);
                             if (buffered != null) {
-                                sendVideoFrame(buffered);
-                                lastSend = now;
+                                // Asegurar que el BufferedImage esté en formato compatible con JPG
+                                BufferedImage compatibleImage = new BufferedImage(
+                                        buffered.getWidth(),
+                                        buffered.getHeight(),
+                                        BufferedImage.TYPE_INT_RGB);
+                                java.awt.Graphics2D g = compatibleImage.createGraphics();
+                                g.drawImage(buffered, 0, 0, null);
+                                g.dispose();
+
+                                try {
+                                    sendVideoFrame(compatibleImage);
+                                    lastSend = now;
+                                } catch (Exception e) {
+                                    System.err.println("Error enviando video: " + e.getMessage());
+                                }
+                            } else {
+                                System.err.println("BufferedImage es null - conversión de JavaFX falló");
                             }
                         }
+                    } else {
+                        System.err.println("Frame capturado es null");
                     }
                 }
 
@@ -143,7 +173,7 @@ public class Main2 extends Application {
         SplitPane splitPane = new SplitPane();
         splitPane.getItems().addAll(videoGrid, chatBox);
         splitPane.setDividerPositions(0.75);
-        splitPane.setResizableWithParent(chatBox, false);
+        SplitPane.setResizableWithParent(chatBox, false);
 
         root.setCenter(splitPane);
 
@@ -190,7 +220,7 @@ public class Main2 extends Application {
         addMessage(">> Conectando al servidor...", false);
         Thread connectionThread = new Thread(() -> {
             try {
-                client = new MeetingClient(this);
+                client = new MeetingClient(MeetingClient.DEFAULT_HOST, MeetingClient.DEFAULT_PORT, this);
             } catch (Exception e) {
                 addMessage(">> Error: No se pudo conectar - " + e.getMessage(), false);
                 e.printStackTrace();
@@ -198,6 +228,12 @@ public class Main2 extends Application {
         });
         connectionThread.setDaemon(true);
         connectionThread.start();
+
+        // Iniciar micrófono automáticamente
+        if (micOn) {
+            startMicrophone();
+            addMessage(">> Micrófono activado", false);
+        }
 
     }
 
@@ -279,12 +315,17 @@ public class Main2 extends Application {
         }
 
         if (camera == null) {
-            camStatusLabel.setText("Cam: sin inicializar");
+            camStatusLabel.setText("Cam: ❌ sin inicializar");
+            return;
+        }
+
+        if (!camera.isOpened()) {
+            camStatusLabel.setText("Cam: ❌ no abierta - verifica permisos");
             return;
         }
 
         if (!cameraOn) {
-            camStatusLabel.setText("Cam: apagada");
+            camStatusLabel.setText("Cam: ⏸ apagada");
             return;
         }
 
@@ -293,7 +334,8 @@ public class Main2 extends Application {
         long frames = camera.getFrameCount();
         String ageText = ageMs < 0 ? "sin frames" : (ageMs + " ms");
 
-        camStatusLabel.setText("Cam: on | frames=" + frames + " | edad=" + ageText);
+        String status = frames > 0 ? "✓" : "⚠️";
+        camStatusLabel.setText("Cam: " + status + " on | frames=" + frames + " | edad=" + ageText);
     }
 
     // ================= CAMERA =================
@@ -333,31 +375,73 @@ public class Main2 extends Application {
     }
 
     // ================= NETWORK VIDEO =================
-    private void sendVideoFrame(BufferedImage image) {
-        if (client == null)
+    private void sendVideoFrame(BufferedImage image) throws Exception {
+        if (client == null) {
+            System.err.println("Cliente no conectado, no se puede enviar video");
             return;
+        }
 
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "jpg", baos);
-            client.sendMessage(new Message("VIDEO", username, baos.toByteArray()));
-        } catch (Exception ignored) {
+        if (!client.isConnected()) {
+            System.err.println("Cliente desconectado, esperando reconexión...");
+            return;
+        }
+
+        // Validar imagen antes de convertir
+        if (image == null) {
+            System.err.println("BufferedImage es null en sendVideoFrame");
+            return;
+        }
+
+        if (image.getWidth() == 0 || image.getHeight() == 0) {
+            System.err.println(
+                    "BufferedImage tiene dimensiones inválidas: " + image.getWidth() + "x" + image.getHeight());
+            return;
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        boolean writeSuccess = ImageIO.write(image, "jpg", baos);
+
+        if (!writeSuccess) {
+            System.err.println("ImageIO.write() retornó false - no se pudo codificar JPG");
+            return;
+        }
+
+        byte[] videoData = baos.toByteArray();
+
+        if (videoData.length > 0) {
+            client.sendMessage(new Message("VIDEO", username, videoData));
+            // Log reducido: solo cada 5 frames (~1 segundo)
+            if (System.currentTimeMillis() % 5000 < 200) {
+                System.out.println("✓ Video enviado: " + videoData.length + " bytes");
+            }
+        } else {
+            System.err.println("Video data está vacío después de write exitoso - imagen incompatible");
         }
     }
 
     public void receiveVideoFrame(String sender, byte[] imageBytes) {
+
+        // Log reducido: solo cada 5 frames
+        if (System.currentTimeMillis() % 5000 < 200) {
+            System.out.println("✓ Recibiendo video de " + sender + ": " + imageBytes.length + " bytes");
+        }
 
         Platform.runLater(() -> {
 
             ImageView view = userVideoMap.get(sender);
 
             if (view == null) {
+                System.out.println("Creando nueva vista para " + sender);
                 view = createVideoView();
                 userVideoMap.put(sender, view);
                 updateGridLayout();
             }
 
-            view.setImage(new Image(new ByteArrayInputStream(imageBytes)));
+            try {
+                view.setImage(new Image(new ByteArrayInputStream(imageBytes)));
+            } catch (Exception e) {
+                System.err.println("Error mostrando video de " + sender + ": " + e.getMessage());
+            }
         });
     }
 
@@ -365,27 +449,48 @@ public class Main2 extends Application {
     private void startMicrophone() {
         new Thread(() -> {
             try {
+                System.out.println("🎤 Iniciando micrófono...");
 
                 DataLine.Info info = new DataLine.Info(TargetDataLine.class, audioFormat);
+
+                if (!AudioSystem.isLineSupported(info)) {
+                    System.err.println("❌ Formato de audio no soportado por el sistema");
+                    Platform.runLater(() -> addMessage(">> Error: Micrófono no disponible", false));
+                    return;
+                }
 
                 microphone = (TargetDataLine) AudioSystem.getLine(info);
                 microphone.open(audioFormat);
                 microphone.start();
 
+                System.out.println("✓ Micrófono iniciado correctamente");
+
                 byte[] buffer = new byte[4096];
+                long audioCount = 0;
 
                 while (micOn && microphone != null) {
                     int bytesRead = microphone.read(buffer, 0, buffer.length);
-                    if (bytesRead > 0 && client != null) {
+                    if (bytesRead > 0 && client != null && client.isConnected()) {
                         try {
-                            client.sendMessage(new Message("AUDIO", username, buffer.clone()));
-                        } catch (IOException ignored) {
+                            byte[] audioChunk = Arrays.copyOf(buffer, bytesRead);
+                            client.sendMessage(new Message("AUDIO", username, audioChunk));
+                            audioCount++;
+                            // Log reducido: cada 50 paquetes (~2 segundos)
+                            if (audioCount % 50 == 0) {
+                                System.out.println("🎤 Audio enviado: " + audioCount + " paquetes");
+                            }
+                        } catch (IOException e) {
+                            System.err.println("Error enviando audio: " + e.getMessage());
                         }
 
                     }
                 }
 
-            } catch (Exception ignored) {
+                System.out.println("🎤 Micrófono detenido");
+
+            } catch (Exception e) {
+                System.err.println("❌ Error con micrófono: " + e.getMessage());
+                e.printStackTrace();
             }
         }).start();
     }
@@ -398,6 +503,10 @@ public class Main2 extends Application {
 
         new Thread(() -> {
             try {
+                // Log de audio recibido (reducido)
+                if (System.currentTimeMillis() % 2000 < 100) {
+                    System.out.println("🔊 Reproduciendo audio: " + audioData.length + " bytes");
+                }
 
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
 
@@ -412,6 +521,7 @@ public class Main2 extends Application {
                 speakers.close();
 
             } catch (Exception e) {
+                System.err.println("❌ Error reproduciendo audio: " + e.getMessage());
                 e.printStackTrace();
             }
         }).start();

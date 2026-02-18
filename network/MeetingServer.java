@@ -6,9 +6,8 @@ import java.util.*;
 
 public class MeetingServer {
 
-    private static final int PORT = 5000;
-    private static Set<ClientHandler> clients =
-            Collections.synchronizedSet(new HashSet<>());
+    private static final int PORT = 5001;
+    static Set<ClientHandler> clients = Collections.synchronizedSet(new HashSet<>());
 
     public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);
@@ -19,14 +18,12 @@ public class MeetingServer {
 
             if (clients.size() >= 4) {
                 try {
-                    ObjectOutputStream tempOut =
-                            new ObjectOutputStream(socket.getOutputStream());
+                    ObjectOutputStream tempOut = new ObjectOutputStream(socket.getOutputStream());
 
                     Message fullMsg = new Message(
                             "INFO",
                             "Servidor",
-                            "La sala está llena (máximo 4 usuarios)"
-                    );
+                            "La sala está llena (máximo 4 usuarios)");
 
                     tempOut.writeObject(fullMsg);
                     tempOut.flush();
@@ -82,9 +79,32 @@ class ClientHandler implements Runnable {
                     username = msg.getSender();
                 }
 
+                // Ignorar PING/PONG internos
+                if ("PING".equals(msg.getType())) {
+                    send(new Message("PONG", "Servidor", ""));
+                    continue;
+                }
+
+                if ("PONG".equals(msg.getType())) {
+                    continue; // Ignorar PONG
+                }
+
                 // 🔥 IMPORTANTE
                 // No importa si es CHAT o VIDEO,
                 // el servidor actúa como RELAY y reenvía todo.
+                if ("VIDEO".equals(msg.getType())) {
+                    System.out.println("Retransmitiendo VIDEO de " + msg.getSender() + " a "
+                            + MeetingServer.clients.size() + " clientes");
+                }
+
+                if ("AUDIO".equals(msg.getType())) {
+                    // Log menos frecuente para audio
+                    if (System.currentTimeMillis() % 3000 < 100) {
+                        System.out.println("🔊 Retransmitiendo AUDIO de " + msg.getSender() + " ("
+                                + msg.getData().length + " bytes)");
+                    }
+                }
+
                 MeetingServer.broadcast(msg);
             }
 
@@ -106,8 +126,7 @@ class ClientHandler implements Runnable {
                 Message leaveMsg = new Message(
                         "LEAVE",
                         "Servidor",
-                        username + " salió de la reunión"
-                );
+                        username + " salió de la reunión");
 
                 MeetingServer.broadcast(leaveMsg);
             }

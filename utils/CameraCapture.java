@@ -12,6 +12,7 @@ public class CameraCapture {
     private boolean isOpen = false;
     private volatile byte[] latestFrameBytes;
     private Thread readerThread;
+    private Thread stderrThread;
     private volatile long frameCount = 0;
     private volatile long lastFrameAt = 0;
 
@@ -34,11 +35,11 @@ public class CameraCapture {
 
             String pythonPath = resolvePythonExecutable();
             ProcessBuilder pb = new ProcessBuilder(pythonPath, scriptPath, String.valueOf(cameraIndex));
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
             pb.environment().put("PYTHONUNBUFFERED", "1");
 
             this.captureProcess = pb.start();
             this.frameStream = captureProcess.getInputStream();
+            startStderrReader();
 
             Thread.sleep(1000);
 
@@ -111,6 +112,7 @@ public class CameraCapture {
                         int bytesRead = frameStream.read(frameData, totalRead, frameData.length - totalRead);
                         if (bytesRead == -1) {
                             isOpen = false;
+                            System.out.println("Camera: Python stream closed unexpectedly");
                             return;
                         }
                         totalRead += bytesRead;
@@ -120,12 +122,31 @@ public class CameraCapture {
                     frameCount++;
                     lastFrameAt = System.currentTimeMillis();
                 }
-            } catch (IOException ignored) {
+            } catch (IOException e) {
                 isOpen = false;
+                System.out.println("Camera: reader error: " + e.getMessage());
             }
         });
         readerThread.setDaemon(true);
         readerThread.start();
+    }
+
+    private void startStderrReader() {
+        if (captureProcess == null) {
+            return;
+        }
+
+        stderrThread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(captureProcess.getErrorStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            } catch (IOException ignored) {
+            }
+        });
+        stderrThread.setDaemon(true);
+        stderrThread.start();
     }
 
     public void close() {

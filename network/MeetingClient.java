@@ -79,8 +79,7 @@ public class MeetingClient {
                 sendMessage(new Message(
                         "JOIN",
                         ui.getUsername(),
-                        ui.getUsername() + " se unió"
-                ));
+                        ui.getUsername() + " se unió"));
 
             } catch (SocketTimeoutException e) {
                 Platform.runLater(() -> ui.addMessage(">> Error: Timeout al conectar", false));

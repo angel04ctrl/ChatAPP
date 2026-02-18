@@ -1,7 +1,6 @@
 package ui;
 
 import java.net.URL;
-import com.github.sarxos.webcam.Webcam;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.Image;
 import javafx.embed.swing.SwingFXUtils;
@@ -28,7 +27,6 @@ public class Main2 extends Application {
     private TextField messageField;
     private MeetingClient client;
     private String username;
-    private Webcam webcam;
     private Map<String, ImageView> userVideoMap = new HashMap<>();
     private GridPane videoGrid;
     private boolean cameraOn = true;
@@ -38,12 +36,6 @@ public class Main2 extends Application {
 
     @Override
     public void start(Stage stage) {
-
-        webcam = Webcam.getDefault();
-        if (webcam != null) {
-            webcam.setViewSize(new java.awt.Dimension(320, 240));
-            webcam.open();
-        }
 
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Nombre de usuario");
@@ -83,24 +75,12 @@ public class Main2 extends Application {
             @Override
             public void handle(long now) {
 
-                if (now - lastFrame < 100_000_000) return;
+                if (now - lastFrame < 100_000_000)
+                    return;
                 lastFrame = now;
 
-                if (webcam != null && webcam.isOpen()) {
-
-                    BufferedImage bufferedImage = webcam.getImage();
-                    if (bufferedImage != null) {
-
-                        Image fxImage = SwingFXUtils.toFXImage(bufferedImage, null);
-
-                        ImageView view = userVideoMap.get(username);
-                        if (view != null) {
-                            view.setImage(fxImage);
-                        }
-
-                        sendVideoFrame(bufferedImage);
-                    }
-                }
+                // Video capture disabled for macOS compatibility
+                // TODO: Re-enable after fixing BridJ architecture issues
             }
         };
         timer.start();
@@ -144,7 +124,6 @@ public class Main2 extends Application {
         Button leaveButton = new Button("Salir");
 
         leaveButton.setOnAction(e -> {
-            if (webcam != null) webcam.close();
             System.exit(0);
         });
 
@@ -177,7 +156,6 @@ public class Main2 extends Application {
         connectionThread.setDaemon(true);
         connectionThread.start();
 
-        
     }
 
     // ================= VIDEO VIEW FACTORY =================
@@ -185,7 +163,7 @@ public class Main2 extends Application {
 
         ImageView view = new ImageView();
 
-        view.setFitWidth(400);     // 🔥 tamaño visual fijo
+        view.setFitWidth(400); // 🔥 tamaño visual fijo
         view.setFitHeight(300);
         view.setPreserveRatio(true);
         view.setSmooth(true);
@@ -198,8 +176,7 @@ public class Main2 extends Application {
         StackPane container = new StackPane(view);
 
         container.setStyle(
-            "-fx-background-color: transparent;"
-        );
+                "-fx-background-color: transparent;");
 
         view.setPreserveRatio(true);
 
@@ -209,17 +186,14 @@ public class Main2 extends Application {
         return container;
     }
 
-
-    
-
-
     // ================= GRID LAYOUT FIX DEFINITIVO =================
     private void updateGridLayout() {
 
         videoGrid.getChildren().clear();
 
         int total = userVideoMap.size();
-        if (total == 0) return;
+        if (total == 0)
+            return;
 
         int cols = (int) Math.ceil(Math.sqrt(total));
         int rows = (int) Math.ceil((double) total / cols);
@@ -256,17 +230,14 @@ public class Main2 extends Application {
         }
     }
 
-
     // ================= CAMERA =================
     private void toggleCamera(Button button) {
 
         cameraOn = !cameraOn;
 
         if (!cameraOn) {
-            if (webcam != null) webcam.close();
             button.setText("Cam OFF");
         } else {
-            if (webcam != null) webcam.open();
             button.setText("Cam ON");
         }
     }
@@ -287,13 +258,15 @@ public class Main2 extends Application {
 
     // ================= NETWORK VIDEO =================
     private void sendVideoFrame(BufferedImage image) {
-        if (client == null) return;
+        if (client == null)
+            return;
 
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
             client.sendMessage(new Message("VIDEO", username, baos.toByteArray()));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     public void receiveVideoFrame(String sender, byte[] imageBytes) {
@@ -317,8 +290,7 @@ public class Main2 extends Application {
         new Thread(() -> {
             try {
 
-                DataLine.Info info =
-                        new DataLine.Info(TargetDataLine.class, audioFormat);
+                DataLine.Info info = new DataLine.Info(TargetDataLine.class, audioFormat);
 
                 microphone = (TargetDataLine) AudioSystem.getLine(info);
                 microphone.open(audioFormat);
@@ -329,14 +301,16 @@ public class Main2 extends Application {
                 while (micOn && microphone != null) {
                     int bytesRead = microphone.read(buffer, 0, buffer.length);
                     if (bytesRead > 0 && client != null) {
-                        try{
+                        try {
                             client.sendMessage(new Message("AUDIO", username, buffer.clone()));
-                        }catch(IOException ignored){}
-                        
+                        } catch (IOException ignored) {
+                        }
+
                     }
                 }
 
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }).start();
     }
 
@@ -349,11 +323,9 @@ public class Main2 extends Application {
         new Thread(() -> {
             try {
 
-                DataLine.Info info =
-                        new DataLine.Info(SourceDataLine.class, audioFormat);
+                DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
 
-                SourceDataLine speakers =
-                        (SourceDataLine) AudioSystem.getLine(info);
+                SourceDataLine speakers = (SourceDataLine) AudioSystem.getLine(info);
 
                 speakers.open(audioFormat);
                 speakers.start();
@@ -379,7 +351,6 @@ public class Main2 extends Application {
         });
     }
 
-
     private void stopMicrophone() {
         try {
             if (microphone != null) {
@@ -387,7 +358,8 @@ public class Main2 extends Application {
                 microphone.close();
                 microphone = null;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     public void addMessage(String message, boolean own) {
@@ -406,7 +378,6 @@ public class Main2 extends Application {
             }
         }
     }
-
 
     public static void main(String[] args) {
         launch();

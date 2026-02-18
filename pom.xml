@@ -55,6 +55,18 @@
             <artifactId>slf4j-simple</artifactId>
             <version>1.7.36</version>
         </dependency>
+        <!-- Webcam capture without problematic BridJ dependency -->
+        <dependency>
+            <groupId>com.github.sarxos</groupId>
+            <artifactId>webcam-capture</artifactId>
+            <version>0.3.12</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.bridj</groupId>
+                    <artifactId>bridj</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>

@@ -19,6 +19,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import network.*;
+import utils.CameraCapture;
 import java.util.*;
 
 public class Main2 extends Application {
@@ -27,6 +28,7 @@ public class Main2 extends Application {
     private TextField messageField;
     private MeetingClient client;
     private String username;
+    private CameraCapture camera;
     private Map<String, ImageView> userVideoMap = new HashMap<>();
     private GridPane videoGrid;
     private boolean cameraOn = true;
@@ -42,6 +44,14 @@ public class Main2 extends Application {
         dialog.setHeaderText("Ingresa tu nombre:");
         dialog.setContentText("Nombre:");
         username = dialog.showAndWait().orElse("Usuario");
+
+        // Initialize camera
+        try {
+            camera = new CameraCapture(0);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not initialize camera: " + e.getMessage());
+            camera = null;
+        }
 
         BorderPane root = new BorderPane();
 
@@ -79,8 +89,15 @@ public class Main2 extends Application {
                     return;
                 lastFrame = now;
 
-                // Video capture disabled for macOS compatibility
-                // TODO: Re-enable after fixing BridJ architecture issues
+                if (cameraOn && camera != null && camera.isOpened()) {
+                    Image frame = camera.captureFrame();
+                    if (frame != null) {
+                        ImageView view = userVideoMap.get(username);
+                        if (view != null) {
+                            view.setImage(frame);
+                        }
+                    }
+                }
             }
         };
         timer.start();
@@ -124,6 +141,9 @@ public class Main2 extends Application {
         Button leaveButton = new Button("Salir");
 
         leaveButton.setOnAction(e -> {
+            if (camera != null) {
+                camera.close();
+            }
             System.exit(0);
         });
 

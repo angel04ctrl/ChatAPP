@@ -1,6 +1,7 @@
 Main.class
 network/MeetingServer.class
 ui/Main2$1.class
+utils/CameraCapture.class
 network/Message.class
 ui/Main2.class
 network/ClientHandler.class

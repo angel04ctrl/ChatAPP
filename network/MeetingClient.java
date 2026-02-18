@@ -7,11 +7,18 @@ import java.net.*;
 
 public class MeetingClient {
 
+    public static final String DEFAULT_HOST = "4.tcp.ngrok.io";
+    public static final int DEFAULT_PORT = 16764;
+
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private Main2 ui;
     private Socket socket;
     private boolean connected = false;
+
+    public MeetingClient(Main2 ui) throws IOException {
+        this(DEFAULT_HOST, DEFAULT_PORT, ui);
+    }
 
     public MeetingClient(String host, int port, Main2 ui) throws IOException {
 

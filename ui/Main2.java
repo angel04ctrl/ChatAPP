@@ -175,6 +175,11 @@ public class Main2 extends Application {
         stage.setTitle("Mini Meet - " + username);
         stage.setScene(scene);
         stage.show();
+        stage.centerOnScreen();
+        Platform.runLater(() -> {
+            stage.toFront();
+            stage.requestFocus();
+        });
 
         URL cssURL = getClass().getResource("/style.css");
         if (cssURL != null) {
@@ -185,7 +190,7 @@ public class Main2 extends Application {
         addMessage(">> Conectando al servidor...", false);
         Thread connectionThread = new Thread(() -> {
             try {
-                client = new MeetingClient("4.tcp.ngrok.io", 16764, this);
+                client = new MeetingClient(this);
             } catch (Exception e) {
                 addMessage(">> Error: No se pudo conectar - " + e.getMessage(), false);
                 e.printStackTrace();

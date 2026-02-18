@@ -35,6 +35,7 @@ public class Main2 extends Application {
     private boolean micOn = true;
     private TargetDataLine microphone;
     private AudioFormat audioFormat = new AudioFormat(44100, 16, 1, true, true);
+    private Label camStatusLabel;
 
     @Override
     public void start(Stage stage) {
@@ -81,6 +82,8 @@ public class Main2 extends Application {
         // ================= TIMER =================
         AnimationTimer timer = new AnimationTimer() {
             private long lastFrame = 0;
+            private long lastSend = 0;
+            private long lastStatus = 0;
 
             @Override
             public void handle(long now) {
@@ -96,7 +99,20 @@ public class Main2 extends Application {
                         if (view != null) {
                             view.setImage(frame);
                         }
+
+                        if (client != null && now - lastSend >= 200_000_000) {
+                            BufferedImage buffered = SwingFXUtils.fromFXImage(frame, null);
+                            if (buffered != null) {
+                                sendVideoFrame(buffered);
+                                lastSend = now;
+                            }
+                        }
                     }
+                }
+
+                if (now - lastStatus >= 500_000_000) {
+                    updateCameraStatus();
+                    lastStatus = now;
                 }
             }
         };
@@ -140,6 +156,8 @@ public class Main2 extends Application {
         Button camButton = new Button("Cam ON");
         Button leaveButton = new Button("Salir");
 
+        camStatusLabel = new Label("Cam: iniciando...");
+
         leaveButton.setOnAction(e -> {
             if (camera != null) {
                 camera.close();
@@ -150,7 +168,7 @@ public class Main2 extends Application {
         camButton.setOnAction(e -> toggleCamera(camButton));
         micButton.setOnAction(e -> toggleMic(micButton));
 
-        controls.getChildren().addAll(micButton, camButton, leaveButton);
+        controls.getChildren().addAll(micButton, camButton, leaveButton, camStatusLabel);
         root.setBottom(controls);
 
         Scene scene = new Scene(root, 1200, 700);
@@ -250,6 +268,29 @@ public class Main2 extends Application {
         }
     }
 
+    private void updateCameraStatus() {
+        if (camStatusLabel == null) {
+            return;
+        }
+
+        if (camera == null) {
+            camStatusLabel.setText("Cam: sin inicializar");
+            return;
+        }
+
+        if (!cameraOn) {
+            camStatusLabel.setText("Cam: apagada");
+            return;
+        }
+
+        long lastAt = camera.getLastFrameAt();
+        long ageMs = lastAt == 0 ? -1 : (System.currentTimeMillis() - lastAt);
+        long frames = camera.getFrameCount();
+        String ageText = ageMs < 0 ? "sin frames" : (ageMs + " ms");
+
+        camStatusLabel.setText("Cam: on | frames=" + frames + " | edad=" + ageText);
+    }
+
     // ================= CAMERA =================
     private void toggleCamera(Button button) {
 
@@ -257,6 +298,16 @@ public class Main2 extends Application {
 
         if (!cameraOn) {
             button.setText("Cam OFF");
+            ImageView view = userVideoMap.get(username);
+            if (view != null) {
+                view.setImage(null);
+            }
+            if (client != null) {
+                try {
+                    client.sendMessage(new Message("CAM_OFF", username, ""));
+                } catch (IOException ignored) {
+                }
+            }
         } else {
             button.setText("Cam ON");
         }

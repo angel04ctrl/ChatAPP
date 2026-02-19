@@ -217,14 +217,15 @@ public class Main2 extends Application {
 
         // Conexión al cliente: Try-catch para errores de conexión.
         try {
-            client = new MeetingClient("4.tcp.ngrok.io", 13998, this); 
+            client = new MeetingClient("4.tcp.ngrok.io", 11348, this); 
             
-            // 🔥 INICIO AUTOMÁTICO DEL MICRÓFONO
+            // INICIO AUTOMÁTICO DEL MICRÓFONO
             // Como micOn inicia en true, debemos arrancar la captura aquí.
             startMicrophone();
 
         } catch (Exception e) {
-            addMessage(">> No se pudo conectar al servidor: " + e.getMessage(), false);
+            addMessage(">> No se pudo conectar al servidor: ", false);
+            e.printStackTrace();
         }
 
 
@@ -237,7 +238,7 @@ public class Main2 extends Application {
 
         ImageView view = new ImageView();
 
-        view.setFitWidth(400);     // 🔥 tamaño visual fijo
+        view.setFitWidth(400);     // tamaño visual fijo
         view.setFitHeight(300);
         view.setPreserveRatio(true);
         view.setSmooth(true);
@@ -392,10 +393,10 @@ public class Main2 extends Application {
                         new DataLine.Info(TargetDataLine.class, audioFormat);
 
                 microphone = (TargetDataLine) AudioSystem.getLine(info);
-                microphone.open(audioFormat);
+                microphone.open(audioFormat, 2048);
                 microphone.start();
 
-                byte[] buffer = new byte[4096];
+                byte[] buffer = new byte[1024];
 
                 while (micOn && microphone != null) {
                     int bytesRead = microphone.read(buffer, 0, buffer.length);

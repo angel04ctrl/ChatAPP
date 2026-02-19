@@ -110,6 +110,7 @@ class ClientHandler implements Runnable {
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
         out = new ObjectOutputStream(socket.getOutputStream());
+        out.flush(); // Flush para asegurar que el header del stream se envíe inmediatamente.
         in = new ObjectInputStream(socket.getInputStream());
     }
     
@@ -165,7 +166,7 @@ class ClientHandler implements Runnable {
   
     // Envía mensaje a este cliente específico.
     // Funcionamiento: Escribe el objeto Message en el output stream y flush para enviarlo inmediatamente.
-    public void send(Message msg) {
+    public synchronized void send(Message msg) {
         try {
             out.writeObject(msg);
             out.flush();

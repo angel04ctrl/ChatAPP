@@ -30,6 +30,7 @@ public class MeetingClient {
         Socket socket = new Socket(host, port);
 
         out = new ObjectOutputStream(socket.getOutputStream());
+        out.flush(); // Flush para enviar el header del stream inmediatamente.
         in = new ObjectInputStream(socket.getInputStream());
         
         // Hilo para recibir mensajes. Funcionamiento: Bucle while(true) lee mensajes,
